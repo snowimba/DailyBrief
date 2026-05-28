@@ -14,7 +14,8 @@
     "deploy": "node scripts/deploy.mjs",
     "build-site": "node scripts/build-site.mjs",
     "open": "node scripts/open-report.mjs",
-    "web": "tsx scripts/web-server.ts"
+    "web": "tsx scripts/web-server.ts",
+    "positions-snapshot": "tsx scripts/positions-snapshot.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

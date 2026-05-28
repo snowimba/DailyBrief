@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { bjIso } from "../utils";
+
 interface RunOptions {
   cwd: string;
   timeoutMs: number;
@@ -32,7 +34,7 @@ export async function runCommand(
   if (logPath) {
     await fs.writeFile(
       logPath,
-      [`$ ${command} ${args.join(" ")}`, `[started] ${new Date().toISOString()}`, ""].join("\n"),
+      [`$ ${command} ${args.join(" ")}`, `[started] ${bjIso()}`, ""].join("\n"),
       "utf8",
     );
   }
@@ -57,7 +59,7 @@ export async function runCommand(
     if (logPath) {
       void fs.appendFile(
         logPath,
-        `\n[timeout] ${new Date().toISOString()} after ${options.timeoutMs}ms\n`,
+        `\n[timeout] ${bjIso()} after ${options.timeoutMs}ms\n`,
       );
     }
     child.kill("SIGTERM");
@@ -74,7 +76,7 @@ export async function runCommand(
   if (options.logName) {
     await fs.appendFile(
       path.join("logs", options.logName),
-      `\n[exit] ${new Date().toISOString()} code=${exitCode}\n`,
+      `\n[exit] ${bjIso()} code=${exitCode}\n`,
       "utf8",
     );
   }

@@ -2,6 +2,7 @@ import { jsonrepair } from "jsonrepair";
 import { runLlm } from "./llm";
 import { extractJson } from "./json-util";
 import { REPORT_LOCALE } from "../sources/registry";
+import { bjIso } from "../utils";
 import type { CryptoGlobalStats } from "../trading/coingecko";
 import type { FearGreedSnapshot } from "../trading/fear-greed";
 import type { TickerAnalysis } from "../trading/signals";
@@ -254,7 +255,7 @@ async function callOnce(
       try {
         const fs = await import("node:fs");
         fs.mkdirSync("logs", { recursive: true });
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        const ts = bjIso().replace(/[:.]/g, "-");
         fs.writeFileSync(`logs/trading-raw-${ts}.txt`, text, "utf8");
         fs.writeFileSync(`logs/trading-cleaned-${ts}.txt`, cleaned, "utf8");
         console.warn(

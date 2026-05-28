@@ -21,3 +21,22 @@ export function todayKey(d: Date = new Date()): string {
   });
   return fmt.format(d);
 }
+
+/** Beijing time (UTC+8) helpers for the positions/watchlist tab. */
+export function bjNow(): { iso: string; date: string; hhmm: string; weekday: number } {
+  const now = new Date();
+  const bj = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const iso = bj.toISOString().replace("Z", "+08:00");
+  const date = iso.slice(0, 10);
+  const hh = String(bj.getUTCHours()).padStart(2, "0");
+  const mm = String(bj.getUTCMinutes()).padStart(2, "0");
+  return { iso, date, hhmm: `${hh}:${mm}`, weekday: bj.getUTCDay() };
+}
+
+export function bjDate(): string {
+  return bjNow().date;
+}
+
+export function bjIso(): string {
+  return bjNow().iso;
+}

@@ -16,6 +16,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
+const bjDate = () => {
+  const bj = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return bj.toISOString().slice(0, 10);
+};
+
 const ROOT = "daily_reports";
 
 if (!fs.existsSync(ROOT)) {
@@ -96,7 +101,7 @@ const archiveHtml = `<!doctype html>
 </head>
 <body>
   <h1>daily-brief — archive</h1>
-  <p class="meta">${dates.length} report${dates.length === 1 ? "" : "s"} · newest first · generated ${new Date().toISOString().slice(0, 10)}</p>
+  <p class="meta">${dates.length} report${dates.length === 1 ? "" : "s"} · newest first · generated ${bjDate()}</p>
   <div class="top">
     <a href="./index.html">→ Latest report (${latest})</a>
   </div>

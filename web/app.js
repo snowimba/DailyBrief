@@ -1,3 +1,13 @@
+// Beijing time helpers (frontend — matches lib/utils.ts bjNow/bjIso).
+function bjNow() {
+  const bj = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return {
+    iso: bj.toISOString().replace("Z", "+08:00"),
+    date: bj.toISOString().slice(0, 10),
+  };
+}
+function bjIso() { return bjNow().iso; }
+
 const state = {
   tabs: [],
   active: "daily",
@@ -148,8 +158,6 @@ function renderTabs() {
 
 function renderHistorySelect(tabId) {
   const s = tabState(tabId);
-  // The positions tab is "live" — there's no historical snapshot dimension
-  // (P5 may add daily snapshots later, but for MVP keep the dropdown hidden).
   if (tabId === "positions" || !s.dates.length) {
     els.historyWrap.hidden = true;
     els.history.innerHTML = "";
@@ -209,12 +217,6 @@ function renderContent(tabId, data) {
 }
 
 async function loadHistoryDates(tabId) {
-  // Positions tab never has historical snapshots in MVP.
-  if (tabId === "positions") {
-    tabState(tabId).dates = [];
-    renderHistorySelect(tabId);
-    return;
-  }
   const s = tabState(tabId);
   try {
     const { res, json } = await fetchJson(`/api/tabs/${tabId}/history`);
@@ -358,7 +360,7 @@ function setPositionsSnapshot(snap) {
   const s = tabState("positions");
   s.latest = {
     tabId: "positions",
-    date: snap.generatedAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    date: snap.generatedAt?.slice(0, 10) ?? bjNow().date,
     ok: true,
     refreshedAt: snap.generatedAt,
     title: "盯盘助手",
@@ -422,6 +424,7 @@ function renderSummary(snap) {
         )
         .join("")
     : `<span class="muted">行业信息缺失（数据源未填）</span>`;
+  const sparkHtml = renderSparkline(snap.trend || []);
   return `
     <div class="pos-summary">
       <div class="pos-summary-cell">
@@ -436,10 +439,51 @@ function renderSummary(snap) {
         <span class="kicker">当日盈亏</span>
         <strong class="${colorOf(t.todayPnL)}">${fmtSignedMoney(t.todayPnL)}</strong>
       </div>
+      <div class="pos-summary-cell pos-sparkline-cell">
+        <span class="kicker">7日盈亏趋势</span>
+        ${sparkHtml}
+      </div>
       <div class="pos-summary-industries">
         <span class="kicker">行业分布</span>
         <div class="ind-pills">${indHtml}</div>
       </div>
+    </div>
+  `;
+}
+
+function renderSparkline(trend) {
+  if (!trend || trend.length < 2) return `<span class="muted">暂无数据</span>`;
+  const values = trend.map((p) => p.floatingPnL);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 180, h = 40, pad = 2;
+  const points = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+    const y = pad + (1 - (v - min) / range) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  // Color: green if latest > earliest, red otherwise
+  const up = values[values.length - 1] >= values[0];
+  const stroke = up ? "var(--up)" : "var(--down)";
+  const fill = up ? "rgba(21,128,61,0.12)" : "rgba(220,38,38,0.10)";
+  // Add a fill polygon
+  const firstX = pad;
+  const lastX = w - pad;
+  const firstY = pad + (1 - (values[0] - min) / range) * (h - pad * 2);
+  const lastY = pad + (1 - (values[values.length - 1] - min) / range) * (h - pad * 2);
+  const polyPts = `${firstX},${h - pad} ${points} ${lastX},${h - pad}`;
+  // Labels: first and last date
+  const firstDate = (trend[0].date || "").slice(5); // MM-DD
+  const lastDate = (trend[trend.length - 1].date || "").slice(5);
+  return `
+    <div class="sparkline-wrap">
+      <span class="spark-date">${firstDate}</span>
+      <svg class="sparkline" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+        <polygon points="${polyPts}" fill="${fill}" />
+        <polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="spark-date">${lastDate}</span>
     </div>
   `;
 }
@@ -451,7 +495,6 @@ function renderToolbar(snap) {
   return `
     <div class="pos-toolbar">
       <button class="primary-btn" data-pos-add>+ 加仓位</button>
-      <button class="ghost-btn" data-pos-test-push${snap.telegramReady ? "" : " disabled"} title="${snap.telegramReady ? "向 Telegram 发一条测试消息" : "Telegram 未配置"}">测试推送</button>
       <span class="muted">${trading}</span>
       <span class="muted" data-notif-toggle role="button" tabindex="0">${notif}</span>
       <span class="muted">${tg}</span>
@@ -564,24 +607,29 @@ function renderAnnouncements(items) {
   if (!items || items.length === 0) {
     return `
       <div class="ann-section">
-        <span class="kicker">公告</span>
-        <div class="muted">最近无公告</div>
+        <span class="kicker">新闻与公告</span>
+        <div class="muted">暂无数据</div>
       </div>
     `;
   }
   const HOT = ["回购","减持","增持","问询函","重大资产","股权激励","业绩预告","立案","ST","退市","停牌","复牌"];
-  const top = items.slice(0, 5);
-  const rows = top.map((a) => {
-    const hot = HOT.find((kw) => a.title.includes(kw));
+  const rows = items.map((a) => {
+    const hot = HOT.find((kw) => (a.title || "").includes(kw));
+    const summary = a.summary || "";
+    const url = a.url || "";
+    const titleHtml = url
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="ann-link">${escapeHtml(a.title)}</a>`
+      : `<span class="ann-title">${escapeHtml(a.title)}</span>`;
     return `<li class="ann-item${hot ? " hot" : ""}">
-      <span class="ann-time">${escapeHtml(a.displayTime || a.noticeDate || "")}</span>
+      <span class="ann-source">${escapeHtml(a.sourceLabel || "")}</span>
+      <span class="ann-time">${escapeHtml(a.publishedAt || "")}</span>
       ${hot ? `<span class="ann-tag">${escapeHtml(hot)}</span>` : ""}
-      <span class="ann-title">${escapeHtml(a.title)}</span>
+      <div class="ann-body">${titleHtml}</div>
     </li>`;
   }).join("");
   return `
     <div class="ann-section">
-      <span class="kicker">公告(最近 ${items.length} 条,显示前 5)</span>
+      <span class="kicker">新闻与公告 (${items.length} 条)</span>
       <ul class="ann-list">${rows}</ul>
     </div>
   `;

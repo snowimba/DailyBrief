@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { getProvider, getProviders } from "../lib/web/providers";
+import { bjIso } from "../lib/utils";
 import { latestState } from "../lib/web/state-store";
 import {
   buildSnapshot,
@@ -326,7 +327,7 @@ async function positionsHandler(
       res.write(`event: ${event}\n`);
       res.write(`data: ${JSON.stringify(data)}\n\n`);
     };
-    write("hello", { ts: new Date().toISOString() });
+    write("hello", { ts: bjIso() });
     const dispose = registerSseClient(write);
     const heartbeat = setInterval(() => {
       try {

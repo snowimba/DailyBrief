@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { bjIso, bjNow } from "../../utils";
 import type {
   AlertEvent,
   AlertKind,
@@ -108,7 +109,7 @@ export function evaluatePosition(
 ): { events: AlertEvent[]; nextState: AlertStateEntry[] } {
   const events: AlertEvent[] = [];
   let nextState = state;
-  const dayKey = quote.date || now.toISOString().slice(0, 10);
+  const dayKey = quote.date || bjNow().date;
   const dailyPct = quote.changePct;
 
   for (const rule of position.alertRules) {
@@ -149,7 +150,7 @@ export function evaluatePosition(
     const fired = crossed(rule.trigger, prevPrice, quote.last, target);
     if (fired && !inCooldown(rule, prev, now)) {
       events.push({
-        ts: now.toISOString(),
+        ts: bjIso(),
         positionId: position.id,
         ruleId: rule.id,
         symbol: position.symbol,
@@ -170,7 +171,7 @@ export function evaluatePosition(
         ruleId: rule.id,
         prevPrice: quote.last,
         prevDayKey: dayKey,
-        lastFiredAt: now.toISOString(),
+        lastFiredAt: bjIso(),
         lastFiredPrice: quote.last,
       });
     } else {
@@ -191,7 +192,7 @@ export function evaluatePosition(
 async function appendAuditLog(events: AlertEvent[]): Promise<void> {
   if (events.length === 0) return;
   await fs.mkdir(LOG_DIR, { recursive: true });
-  const date = new Date().toISOString().slice(0, 10);
+  const date = bjNow().date;
   const file = path.join(LOG_DIR, `alerts-${date}.jsonl`);
   const lines = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
   await fs.appendFile(file, lines, "utf8");
@@ -228,7 +229,7 @@ export async function runAlertEngine(
   quotes: Record<string, QuoteSummary>,
   deps: EngineDeps,
 ): Promise<AlertEvent[]> {
-  const now = (deps.now ?? (() => new Date()))();
+  const now = (deps.now ?? (() => new Date(bjNow().iso)))();
   let state = await loadAlertState();
   const allEvents: AlertEvent[] = [];
 

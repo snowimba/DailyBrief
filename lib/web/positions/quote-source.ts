@@ -1,5 +1,6 @@
 import iconv from "iconv-lite";
 
+import { bjIso } from "../../utils";
 import type { Exchange, QuoteSummary } from "./types";
 
 /**
@@ -107,7 +108,7 @@ function parseSinaLine(line: string): QuoteSummary | null {
     date: fields[30] || "",
     time: fields[31] || "",
     source: "sina",
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: bjIso(),
     raw: line.slice(0, 200),
   };
 }
@@ -151,7 +152,7 @@ function parseTencentLine(line: string): QuoteSummary | null {
     date,
     time,
     source: "tencent",
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: bjIso(),
     raw: line.slice(0, 200),
   };
 }

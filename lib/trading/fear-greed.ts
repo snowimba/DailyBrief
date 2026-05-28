@@ -1,3 +1,5 @@
+import { bjIso } from "../utils";
+
 export interface FearGreedSnapshot {
   value: number; // 0-100
   classification: string; // raw English: "Extreme Fear" / "Fear" / "Neutral" / "Greed" / "Extreme Greed"
@@ -41,7 +43,7 @@ export async function fetchCryptoFearGreed(): Promise<FearGreedSnapshot | null> 
       classificationCn: CLASSIFICATION_CN[classification] ?? classification,
       timestamp: item.timestamp
         ? new Date(Number(item.timestamp) * 1000).toISOString()
-        : new Date().toISOString(),
+        : bjIso(),
     };
   } catch {
     return null;

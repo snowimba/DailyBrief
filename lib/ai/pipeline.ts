@@ -3,6 +3,7 @@ import { runLlm } from "./llm";
 import { extractJson } from "./json-util";
 import { SYSTEM_PROMPT_DIGEST_EN, SYSTEM_PROMPT_DIGEST_ZH } from "./prompts";
 import { REPORT_LOCALE } from "../sources/registry";
+import { bjIso } from "../utils";
 import type { Category, RawArticle } from "../sources/types";
 
 const SYSTEM_PROMPT_DIGEST =
@@ -170,7 +171,7 @@ async function callOnce(userPayloadJson: string): Promise<DailyReport> {
       try {
         const fs = await import("node:fs");
         fs.mkdirSync("logs", { recursive: true });
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        const ts = bjIso().replace(/[:.]/g, "-");
         fs.writeFileSync(`logs/claude-raw-${ts}.txt`, text, "utf8");
         fs.writeFileSync(`logs/claude-cleaned-${ts}.txt`, cleaned, "utf8");
         console.warn(

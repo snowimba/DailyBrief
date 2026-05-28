@@ -42,7 +42,7 @@ if (!host || !remotePath) {
 //     always do something useful.
 const dateArg = process.argv[2];
 const todayLocal = new Intl.DateTimeFormat("en-CA", {
-  timeZone: process.env.REPORT_TZ?.trim() || undefined,
+  timeZone: "Asia/Shanghai",
   year: "numeric",
   month: "2-digit",
   day: "2-digit",

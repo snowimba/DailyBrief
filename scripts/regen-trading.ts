@@ -8,7 +8,7 @@ import { generateTradingCommentary } from "../lib/ai/trading-commentary";
 import { fetchCryptoFearGreed } from "../lib/trading/fear-greed";
 import { fetchCryptoGlobal } from "../lib/trading/coingecko";
 import { analyzeWatchlist } from "../lib/trading/runner";
-import { todayKey } from "../lib/utils";
+import { bjIso, todayKey } from "../lib/utils";
 
 const OUTPUT_DIR = "daily_reports";
 
@@ -65,7 +65,7 @@ async function main() {
     tickers,
     crypto_fear_greed: fg ?? undefined,
     crypto_global: cg ?? undefined,
-    generated_at: new Date().toISOString(),
+    generated_at: bjIso(),
   };
   report.trading = trading;
   fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), "utf8");

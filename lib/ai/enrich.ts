@@ -2,6 +2,7 @@ import { jsonrepair } from "jsonrepair";
 import { runLlm } from "./llm";
 import { extractJson } from "./json-util";
 import { REPORT_LOCALE } from "../sources/registry";
+import { bjIso } from "../utils";
 
 interface EnrichInput {
   url: string;
@@ -225,7 +226,7 @@ async function runEnrichment(
       try {
         const fs = await import("node:fs");
         fs.mkdirSync("logs", { recursive: true });
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
+        const ts = bjIso().replace(/[:.]/g, "-");
         const tag = scope.replace(/[^a-z0-9]/gi, "-");
         fs.writeFileSync(
           `logs/enrich-undercount-${tag}-${ts}.txt`,

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { bjIso } from "../../utils";
 import type {
   AlertRule,
   AlertStateEntry,
@@ -85,7 +86,7 @@ export async function addPosition(input: NewPositionInput): Promise<Position> {
   if (!Number.isFinite(input.avgCost) || input.avgCost <= 0) {
     throw new Error("avgCost must be a positive number");
   }
-  const now = new Date().toISOString();
+  const now = bjIso();
   const pos: Position = {
     id: randomUUID(),
     symbol,
@@ -116,7 +117,7 @@ export async function patchPosition(
   const list = await loadPositions();
   const idx = list.findIndex((p) => p.id === id);
   if (idx < 0) throw new Error(`unknown position: ${id}`);
-  const next: Position = { ...list[idx], ...patch, updatedAt: new Date().toISOString() };
+  const next: Position = { ...list[idx], ...patch, updatedAt: bjIso() };
   if (next.shares !== undefined && (!Number.isFinite(next.shares) || next.shares <= 0)) {
     throw new Error("shares must be a positive number");
   }
@@ -195,7 +196,7 @@ export async function addRule(positionId: string, input: NewRuleInput): Promise<
   list[idx] = {
     ...list[idx],
     alertRules: [...list[idx].alertRules, rule],
-    updatedAt: new Date().toISOString(),
+    updatedAt: bjIso(),
   };
   await savePositions(list);
   return rule;
@@ -208,7 +209,7 @@ export async function deleteRule(positionId: string, ruleId: string): Promise<vo
   list[idx] = {
     ...list[idx],
     alertRules: list[idx].alertRules.filter((r) => r.id !== ruleId),
-    updatedAt: new Date().toISOString(),
+    updatedAt: bjIso(),
   };
   await savePositions(list);
 }
@@ -224,7 +225,7 @@ export async function toggleRule(
   list[idx] = {
     ...list[idx],
     alertRules: list[idx].alertRules.map((r) => (r.id === ruleId ? { ...r, enabled } : r)),
-    updatedAt: new Date().toISOString(),
+    updatedAt: bjIso(),
   };
   await savePositions(list);
 }

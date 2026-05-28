@@ -556,6 +556,24 @@ body {
   font-size: 13px;
   letter-spacing: 0.06em;
 }
+.pos-sparkline-cell {
+  min-width: 220px;
+}
+.sparkline-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sparkline {
+  display: block;
+  flex-shrink: 0;
+}
+.spark-date {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .pos-summary-industries {
   grid-column: 1 / -1;
@@ -920,9 +938,9 @@ body {
 }
 .ann-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
@@ -939,17 +957,33 @@ body {
   font-size: 13px;
   flex-shrink: 0;
 }
-.ann-tag {
-  background: rgba(180, 83, 9, 0.15);
-  color: var(--warn);
+.ann-source {
+  background: var(--accent-soft);
+  color: var(--accent);
   border-radius: 999px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
-.ann-title {
-  color: var(--ink);
+.ann-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   flex: 1 1 200px;
   min-width: 0;
+}
+.ann-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.ann-link:hover { text-decoration: underline; }
+.ann-title {
+  color: var(--ink);
+}
+.ann-summary {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }

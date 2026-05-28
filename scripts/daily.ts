@@ -27,7 +27,7 @@ import { fetchCryptoFearGreed } from "../lib/trading/fear-greed";
 import { fetchCryptoGlobal } from "../lib/trading/coingecko";
 import { generateTradingCommentary } from "../lib/ai/trading-commentary";
 import type { TradingSection } from "../lib/ai/pipeline";
-import { todayKey } from "../lib/utils";
+import { bjIso, todayKey } from "../lib/utils";
 
 const OUTPUT_DIR = "daily_reports";
 
@@ -207,7 +207,7 @@ async function runTrading(): Promise<TradingSection | null> {
     tickers,
     crypto_fear_greed: cryptoFearGreed ?? undefined,
     crypto_global: cryptoGlobal ?? undefined,
-    generated_at: new Date().toISOString(),
+    generated_at: bjIso(),
   };
 }
 

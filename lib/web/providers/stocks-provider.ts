@@ -6,7 +6,7 @@ import {
   loadLatestAstockReport,
   type AstockReport,
 } from "../../astock/report";
-import { todayKey } from "../../utils";
+import { bjIso, todayKey } from "../../utils";
 import { refreshAstockData } from "../astock-refresh-chain";
 import { renderAstockWebHtml } from "../astock-html";
 import { runCommand } from "../run-command";
@@ -51,7 +51,7 @@ function buildResult(report: AstockReport): RefreshResult {
     tabId: "stocks",
     date: report.trade_date,
     ok: true,
-    refreshedAt: new Date().toISOString(),
+    refreshedAt: bjIso(),
     title: `A股日报 ${report.trade_date}`,
     summary: `候选 ${report.metadata.candidate_count ?? report.records.length} 条`,
     html,

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { bjIso } from "../../utils";
 import type { AlertEvent } from "./types";
 import type { ChannelDispatcher } from "./alert-engine";
 
@@ -56,10 +57,10 @@ function loadOpenClawTelegram(): { token?: string; chatIds: number[] } {
 
 function loadConfig(): TelegramConfig | null {
   const envToken = process.env.TELEGRAM_BOT_TOKEN;
-  const envChatIds = (process.env.TELEGRAM_CHAT_IDS ?? "")
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n));
+  const envChatRaw = (process.env.TELEGRAM_CHAT_IDS ?? "").trim();
+  const envChatIds = envChatRaw
+    ? envChatRaw.split(",").map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0)
+    : [];
 
   const oc = loadOpenClawTelegram();
   const token = envToken || oc.token;
@@ -96,8 +97,8 @@ function mdEscape(s: string): string {
 function formatBody(event: AlertEvent): string {
   const lines: string[] = [];
   lines.push(`🔔 *${mdEscape(event.symbol)} ${mdEscape(event.name || "")}* — ${mdEscape(event.ruleLabel)}`);
-  lines.push(`现价 ¥${mdEscape(event.currPrice.toFixed(3).replace(/0+$/, "0"))}  (` +
-    `${event.pctFromCost >= 0 ? "\\+" : ""}${mdEscape(event.pctFromCost.toFixed(2))}% vs 成本)`);
+  lines.push(`现价 ¥${mdEscape(event.currPrice.toFixed(3).replace(/0+$/, "0"))}  \\(` +
+    `${event.pctFromCost >= 0 ? "\\+" : ""}${mdEscape(event.pctFromCost.toFixed(2))}% vs 成本\\)`);
   lines.push(`当日 ${event.dailyChangePct >= 0 ? "\\+" : ""}${mdEscape(event.dailyChangePct.toFixed(2))}%`);
   if (event.kind === "absolute") {
     lines.push(`触发价 ¥${mdEscape(event.targetPrice.toFixed(3).replace(/0+$/, "0"))}`);
@@ -206,7 +207,7 @@ export async function sendTestMessage(): Promise<{ ok: boolean; error?: string; 
   const text =
     `🧪 *DailyBrief 盯盘助手* — 测试推送\n` +
     `如果你看到这条消息,说明 Telegram 推送链路正常。\n` +
-    `时间 ${mdEscape(new Date().toISOString().replace("T", " ").slice(0, 19))} UTC`;
+    `时间 ${mdEscape(bjIso().replace("T", " ").slice(0, 19))} 北京时间`;
   const results = await Promise.all(
     cfg.chatIds.map((id) => sendMessage(cfg.token, id, text)),
   );

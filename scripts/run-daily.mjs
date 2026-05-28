@@ -27,18 +27,24 @@ function spawnSyncShim(cmd, args, opts) {
   return r;
 }
 
+// Beijing time helpers — project convention, all times in UTC+8.
+const bjNow = () => {
+  const bj = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return {
+    iso: bj.toISOString().replace("Z", "+08:00"),
+    date: `${bj.getUTCFullYear()}-${pad(bj.getUTCMonth() + 1)}-${pad(bj.getUTCDate())}`,
+    hhmmss: `${pad(bj.getUTCHours())}:${pad(bj.getUTCMinutes())}:${pad(bj.getUTCSeconds())}`,
+  };
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 process.chdir(projectRoot);
 
-const today = (() => {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-})();
+const today = bjNow().date;
 
-const now = () =>
-  new Date().toTimeString().slice(0, 8); // HH:MM:SS
+const now = () => bjNow().hhmmss;
 
 const logDir = path.join(projectRoot, "logs");
 fs.mkdirSync(logDir, { recursive: true });

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import type { DailyReport } from "../../ai/pipeline";
-import { todayKey } from "../../utils";
+import { bjIso, todayKey } from "../../utils";
 import { runCommand } from "../run-command";
 import { statePath, writeJsonAtomic } from "../state-store";
 import type { RefreshResult, TabProvider } from "../types";
@@ -59,7 +59,7 @@ export async function loadDailyReport(date: string): Promise<RefreshResult | nul
     tabId: "daily",
     date,
     ok: true,
-    refreshedAt: new Date().toISOString(),
+    refreshedAt: bjIso(),
     title: meta?.hero_headline || `综合日报 ${date}`,
     summary: meta?.daily_overview,
     html,
