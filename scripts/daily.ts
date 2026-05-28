@@ -247,6 +247,9 @@ async function main() {
   fs.mkdirSync(dateDir, { recursive: true });
   const base = path.join(dateDir, date);
   const raw = groupRaw(articles, sources);
+  // 综合日报 (news brief) and A股日报 are intentionally decoupled — A股
+  // lives in its own web tab and gets refreshed independently. Don't embed
+  // it here so this refresh only touches the news brief.
   fs.writeFileSync(`${base}.json`, JSON.stringify(report, null, 2), "utf8");
   // Sidecar with all fetched articles + LLM-attached summary, so
   // scripts/render.ts can rebuild HTML/MD for UI iteration without
@@ -256,7 +259,7 @@ async function main() {
     JSON.stringify({ date, articles }, null, 2),
     "utf8",
   );
-  fs.writeFileSync(`${base}.html`, renderHtml(report, raw, date), "utf8");
+  fs.writeFileSync(`${base}.html`, renderHtml(report, raw, date, null), "utf8");
   if (process.env.OUTPUT_MARKDOWN === "true") {
     fs.writeFileSync(`${base}.md`, renderMarkdown(report, date), "utf8");
     console.log(`[daily] wrote ${base}.{json,html,md,articles.json}`);

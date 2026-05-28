@@ -4,6 +4,7 @@ import type {
   DailyReport,
   TradingSection,
 } from "../ai/pipeline";
+import type { AstockRecord, AstockReport } from "../astock/report";
 import type { WatchlistPick } from "../ai/trading-commentary";
 import { REPORT_LOCALE } from "../sources/registry";
 import { getReportTz } from "../utils";
@@ -29,6 +30,7 @@ const TEXTS_ZH = {
   catFinance: "财经要点",
   catPolitics: "时政观察",
   catTrading: "市场行情",
+  catAstock: "A股日报",
   catCommunity: "社区讨论",
   subAiNews: "AI 媒体",
   subTrendingPapers: "Trending Papers",
@@ -70,6 +72,17 @@ const TEXTS_ZH = {
   mdTodayKeywords: "今日关键词",
   mdImportance: "重要度",
   archiveLink: "← 历史归档",
+  astockMarketPulse: "盘面摘要",
+  astockFocus: "重点研究",
+  astockTierBoard: "分层榜单",
+  astockDeepResearch: "深研任务",
+  astockTradeDate: "交易日",
+  astockGeneratedAt: "生成时间",
+  astockCandidateCount: "候选记录",
+  astockHoldingTrack: "持仓跟踪",
+  astockTierDistribution: "分层统计",
+  astockDataSource: "数据源",
+  astockRiskNotice: "仅用于研究复核，不构成投资建议。",
 };
 
 const TEXTS_EN: typeof TEXTS_ZH = {
@@ -78,6 +91,7 @@ const TEXTS_EN: typeof TEXTS_ZH = {
   catFinance: "Finance",
   catPolitics: "World",
   catTrading: "Markets",
+  catAstock: "A-Shares",
   catCommunity: "Community",
   subAiNews: "AI Media",
   subTrendingPapers: "Trending Papers",
@@ -120,6 +134,17 @@ const TEXTS_EN: typeof TEXTS_ZH = {
   mdTodayKeywords: "Keywords",
   mdImportance: "Importance",
   archiveLink: "← Archive",
+  astockMarketPulse: "Market Pulse",
+  astockFocus: "Research Focus",
+  astockTierBoard: "Tier Board",
+  astockDeepResearch: "Deep Research",
+  astockTradeDate: "Trade Date",
+  astockGeneratedAt: "Generated",
+  astockCandidateCount: "Candidates",
+  astockHoldingTrack: "Holdings",
+  astockTierDistribution: "Tier Mix",
+  astockDataSource: "Data Source",
+  astockRiskNotice: "For research review only; not investment advice.",
 };
 
 const STR = REPORT_LOCALE === "en" ? TEXTS_EN : TEXTS_ZH;
@@ -527,6 +552,7 @@ export function renderHtml(
   report: DailyReport,
   raw: RawByCategory,
   date: string,
+  astock?: AstockReport | null,
 ): string {
   const trading = report.trading;
 
@@ -547,7 +573,15 @@ export function renderHtml(
     finance: sumItems(raw.finance),
     politics: sumItems(raw.politics),
     community: sumItems(techCommunitySubs),
+    astock: astock?.metadata.candidate_count ?? astock?.records.length ?? 0,
   };
+  const keywordHtml =
+    report.keywords.length > 0
+      ? `<div class="keywords header-keywords">${report.keywords
+          .slice(0, 8)
+          .map((k) => `<span class="keyword">${escapeHtml(k)}</span>`)
+          .join("")}</div>`
+      : "";
 
   return `<!doctype html>
 <html lang="${REPORT_LOCALE === "en" ? "en" : "zh-CN"}">
@@ -557,24 +591,30 @@ export function renderHtml(
 <title>${STR.siteTitle} · ${date}</title>
 <style>
   :root {
-    --bg: #fafaf9;
+    --bg: #f7f8fb;
     --bg-elevated: #ffffff;
     --fg: #18181b;
     --fg-soft: #3f3f46;
     --muted: #71717a;
-    --rule: #e4e4e7;
-    --card: #f4f4f5;
+    --rule: #dfe3ea;
+    --card: #eef2f7;
     --link: #1d4ed8;
-    --accent: #18181b;
+    --accent: #172033;
     --accent-fg: #fafaf9;
+    --accent-soft: #e8eef8;
+    --positive: #15803d;
+    --negative: #dc2626;
+    --warning: #b45309;
     --rank-high-bg: #fee2e2;
     --rank-high-fg: #991b1b;
     --rank-mid-bg: #fef3c7;
     --rank-mid-fg: #92400e;
     --rank-low-bg: #e0e7ff;
     --rank-low-fg: #3730a3;
-    --hero-grad-from: #fafaf9;
-    --hero-grad-to: #f4f4f5;
+    --hero-grad-from: #ffffff;
+    --hero-grad-to: #eef4ff;
+    --shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+    --page-sheen: rgba(255,255,255,0.68);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -583,11 +623,15 @@ export function renderHtml(
       --fg: #fafafa;
       --fg-soft: #d4d4d8;
       --muted: #a1a1aa;
-      --rule: #27272a;
-      --card: #18181b;
+      --rule: #2f3644;
+      --card: #1e2530;
       --link: #93c5fd;
       --accent: #fafafa;
       --accent-fg: #0a0a0a;
+      --accent-soft: #182236;
+      --positive: #4ade80;
+      --negative: #fca5a5;
+      --warning: #fcd34d;
       --rank-high-bg: rgba(239,68,68,0.18);
       --rank-high-fg: #fca5a5;
       --rank-mid-bg: rgba(245,158,11,0.18);
@@ -595,35 +639,42 @@ export function renderHtml(
       --rank-low-bg: rgba(99,102,241,0.18);
       --rank-low-fg: #a5b4fc;
       --hero-grad-from: #18181b;
-      --hero-grad-to: #0a0a0a;
+      --hero-grad-to: #101827;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.38);
+      --page-sheen: rgba(15,23,42,0.72);
     }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--bg);
+    background:
+      linear-gradient(180deg, var(--page-sheen), rgba(255,255,255,0) 18rem),
+      var(--bg);
     color: var(--fg);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
       "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
-  main { max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+  main { max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  @media (min-width: 900px) {
+    main { padding-top: 2.6rem; }
+  }
 
   /* ===== header ===== */
-  header.report-header { margin-bottom: 1.25rem; }
+  header.report-header { margin-bottom: 1.1rem; }
   .eyebrow {
     font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.14em;
     color: var(--muted);
-    font-weight: 500;
+    font-weight: 700;
   }
   h1.report-title {
-    font-size: 2.2rem;
+    font-size: clamp(1.85rem, 4vw, 2.75rem);
     font-weight: 700;
-    margin: 0.4rem 0 1.2rem;
-    letter-spacing: -0.02em;
+    margin: 0.35rem 0 0.9rem;
+    letter-spacing: 0;
     line-height: 1.1;
   }
   .archive-link {
@@ -637,25 +688,64 @@ export function renderHtml(
   }
   .archive-link:hover { color: var(--accent); border-bottom-style: solid; }
   .hero-card {
+    display: grid;
+    gap: 1.35rem;
+    grid-template-columns: 1fr;
     background: linear-gradient(135deg, var(--hero-grad-from) 0%, var(--hero-grad-to) 100%);
     border: 1px solid var(--rule);
-    border-left: 4px solid var(--accent);
-    padding: 1rem 1.4rem;
-    border-radius: 0.6rem;
+    border-top: 4px solid var(--accent);
+    padding: 1.35rem;
+    border-radius: 0.85rem;
+    box-shadow: var(--shadow);
+  }
+  @media (min-width: 860px) {
+    .hero-card { grid-template-columns: minmax(0, 1fr) 360px; padding: 1.6rem; }
   }
   .hero-eyebrow {
     font-size: 0.7rem;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--muted);
-    font-weight: 500;
+    font-weight: 700;
   }
   .hero-headline {
-    font-size: 1.25rem;
-    font-weight: 600;
+    font-size: clamp(1.1rem, 2vw, 1.45rem);
+    font-weight: 700;
     margin: 0.35rem 0 0;
-    line-height: 1.45;
+    line-height: 1.35;
     color: var(--fg);
+  }
+  .hero-copy .overview-text { margin-top: 0.85rem; max-width: 72ch; }
+  .hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 0.7rem;
+    align-content: start;
+  }
+  .hero-metric {
+    background: rgba(255, 255, 255, 0.66);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.68rem;
+    padding: 0.78rem 0.85rem;
+    min-width: 0;
+  }
+  .hero-metric span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hero-metric strong {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-color-scheme: dark) {
+    .hero-metric { background: rgba(15, 23, 42, 0.42); }
   }
   .overview-card {
     margin: 0.7rem 0 0;
@@ -675,32 +765,40 @@ export function renderHtml(
   /* ===== primary tabs ===== */
   .tabs {
     display: flex;
-    gap: 0.25rem;
-    margin: 1.25rem 0 0.75rem;
-    border-bottom: 1px solid var(--rule);
-    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin: 1.25rem 0 1.25rem;
+    padding: 0.45rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--rule);
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
   .tab {
     background: none;
     border: none;
-    padding: 0.7rem 1.1rem;
-    font-size: 0.95rem;
-    font-weight: 500;
+    padding: 0.65rem 1rem;
+    border-radius: 0.55rem;
+    font-size: 0.92rem;
+    font-weight: 650;
+    white-space: nowrap;
     color: var(--muted);
     cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
     font-family: inherit;
-    transition: color 0.15s;
+    transition: color 0.15s, background 0.15s, box-shadow 0.15s;
   }
-  .tab:hover { color: var(--fg); }
+  .tab:hover { color: var(--fg); background: var(--card); }
   .tab.active {
-    color: var(--fg);
-    border-bottom-color: var(--accent);
+    color: var(--accent-fg);
+    background: var(--accent);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
   }
   .tab .count {
     font-size: 0.72rem;
-    color: var(--muted);
+    color: currentColor;
+    opacity: 0.7;
     margin-left: 0.4rem;
     font-weight: 400;
   }
@@ -804,6 +902,7 @@ export function renderHtml(
     color: var(--fg);
   }
   .keywords { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1.5rem; }
+  .header-keywords { margin: 0.75rem 0 0; }
   .keyword {
     background: var(--card);
     color: var(--fg-soft);
@@ -816,14 +915,14 @@ export function renderHtml(
   .sub-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin: 1rem 0;
+    gap: 0.55rem;
+    margin: 1.15rem 0 1.1rem;
   }
   .sub-tab {
     background: var(--card);
     border: 1px solid transparent;
-    padding: 0.5rem 1.05rem;
-    border-radius: 0.5rem;
+    padding: 0.58rem 1.1rem;
+    border-radius: 0.55rem;
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--fg-soft);
@@ -849,15 +948,15 @@ export function renderHtml(
   .source-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin: 0.9rem 0 1.3rem;
-    padding-bottom: 0.7rem;
+    gap: 0.45rem;
+    margin: 0.95rem 0 1.25rem;
+    padding-bottom: 0.9rem;
     border-bottom: 1px solid var(--rule);
   }
   .source-tab {
     background: none;
     border: 1px solid var(--rule);
-    padding: 0.35rem 0.85rem;
+    padding: 0.42rem 0.9rem;
     border-radius: 999px;
     font-size: 0.83rem;
     color: var(--fg-soft);
@@ -881,15 +980,19 @@ export function renderHtml(
 
   /* ===== article cards in raw panels ===== */
   .article {
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--rule);
+    background: var(--bg-elevated);
+    border: 1px solid var(--rule);
+    border-radius: 0.72rem;
+    padding: 1.05rem 1.15rem;
+    margin-bottom: 0.95rem;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
   }
-  .article:first-child { padding-top: 0; }
-  .article:last-child { border-bottom: none; }
+  .article:first-child { padding-top: 1.05rem; }
+  .article:last-child { margin-bottom: 0; }
   .article-title {
     font-size: 1rem;
     margin: 0 0 0.3rem;
-    font-weight: 500;
+    font-weight: 650;
     line-height: 1.45;
   }
   .article-title a { color: var(--fg); text-decoration: none; }
@@ -910,7 +1013,7 @@ export function renderHtml(
   .article-summary {
     margin: 0.55rem 0 0;
     padding: 0.6rem 0.85rem;
-    background: var(--card);
+    background: var(--accent-soft);
     border-left: 2px solid var(--link);
     border-radius: 0.3rem;
     font-size: 0.9rem;
@@ -932,6 +1035,230 @@ export function renderHtml(
     text-align: center;
     padding: 2rem 0;
     font-size: 0.9rem;
+  }
+
+  /* ===== A-share daily panel ===== */
+  .astock-panel { display: grid; gap: 1.1rem; }
+  .astock-hero {
+    display: grid;
+    gap: 1.25rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--rule);
+    border-top: 4px solid #dc2626;
+    border-radius: 0.82rem;
+    padding: 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  @media (min-width: 860px) {
+    .astock-hero { grid-template-columns: minmax(0, 1fr) 420px; padding: 1.45rem; }
+  }
+  .astock-hero h2 {
+    margin: 0.2rem 0 0.45rem;
+    font-size: clamp(1.2rem, 2vw, 1.55rem);
+    line-height: 1.25;
+  }
+  .astock-hero p {
+    margin: 0;
+    color: var(--fg-soft);
+    font-size: 0.92rem;
+    line-height: 1.75;
+  }
+  .astock-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.7rem;
+  }
+  .astock-metric {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 0.68rem;
+    padding: 0.8rem 0.85rem;
+    min-width: 0;
+  }
+  .astock-metric span,
+  .astock-metric small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .astock-metric strong {
+    display: block;
+    margin: 0.08rem 0;
+    font-size: 1.12rem;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .astock-note {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--link);
+    border-radius: 0.55rem;
+    padding: 0.75rem 1rem;
+  }
+  .astock-note p { margin: 0.25rem 0 0; color: var(--fg-soft); font-size: 0.86rem; }
+  .astock-focus-grid {
+    display: grid;
+    gap: 0.95rem;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 820px) {
+    .astock-focus-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  .astock-focus-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--rule);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    min-width: 0;
+  }
+  .astock-focus-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-bottom: 0.55rem;
+    color: var(--muted);
+  }
+  .astock-rank { font-size: 0.78rem; font-weight: 700; margin-right: 0.35rem; }
+  .astock-focus-card h3 {
+    margin: 0 0 0.6rem;
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .astock-focus-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin: 0 0 0.65rem;
+  }
+  .astock-focus-stats div { min-width: 0; }
+  .astock-focus-stats dt {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.7rem;
+  }
+  .astock-focus-stats dd {
+    margin: 0.06rem 0 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .astock-tier {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6rem;
+    height: 1.35rem;
+    padding: 0 0.45rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .tier-s { background: rgba(220, 38, 38, 0.14); color: #b91c1c; }
+  .tier-a { background: rgba(22, 163, 74, 0.13); color: #15803d; }
+  .tier-b { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+  .tier-x { background: rgba(113, 113, 122, 0.15); color: var(--muted); }
+  .astock-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.42rem;
+    min-height: 1.4rem;
+  }
+  .astock-chip-row.risk { margin-top: 0.35rem; }
+  .astock-signal,
+  .astock-risk-tag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.18rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 650;
+    white-space: nowrap;
+    margin: 0 0.3rem 0.28rem 0;
+  }
+  .astock-signal { background: var(--accent-soft); color: var(--link); }
+  .astock-risk-tag { background: rgba(217,119,6,0.14); color: var(--warning); }
+  .astock-muted { color: var(--muted); font-size: 0.82rem; }
+  .astock-tier-section {
+    background: var(--bg-elevated);
+    border: 1px solid var(--rule);
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .astock-tier-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--rule);
+    font-size: 0.92rem;
+  }
+  .astock-table-wrap { overflow-x: auto; }
+  .astock-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 980px;
+    font-size: 0.86rem;
+  }
+  .astock-table th,
+  .astock-table td {
+    padding: 0.76rem 0.78rem;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    vertical-align: top;
+  }
+  .astock-table th {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--card);
+  }
+  .astock-table tr:last-child td { border-bottom: none; }
+  .astock-table td:first-child,
+  .astock-table td:nth-child(3),
+  .astock-table td:nth-child(4),
+  .astock-table td:nth-child(5),
+  .astock-table td:last-child {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .astock-table td:nth-child(2) span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.76rem;
+    margin-top: 0.08rem;
+  }
+  .astock-table td:nth-child(6),
+  .astock-table td:nth-child(7) {
+    min-width: 150px;
+  }
+  .astock-research-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .astock-research-list span {
+    background: var(--bg-elevated);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 0.35rem 0.72rem;
+    font-size: 0.83rem;
+    font-weight: 650;
+  }
+  .astock-disclaimer { margin-top: 0.2rem; }
+  @media (prefers-color-scheme: dark) {
+    .tier-s { color: #fca5a5; }
+    .tier-a { color: #4ade80; }
+    .tier-b { color: #93c5fd; }
   }
 
   /* ===== trading panel ===== */
@@ -970,8 +1297,8 @@ export function renderHtml(
     color: var(--muted);
     margin-top: 0.25rem;
   }
-  .widget-sub.positive { color: #16a34a; }
-  .widget-sub.negative { color: #dc2626; }
+  .widget-sub.positive { color: var(--positive); }
+  .widget-sub.negative { color: var(--negative); }
   @media (prefers-color-scheme: dark) {
     .widget-sub.positive { color: #4ade80; }
     .widget-sub.negative { color: #fca5a5; }
@@ -1028,8 +1355,8 @@ export function renderHtml(
     border-radius: 0.5rem;
     padding: 0.8rem 1rem;
   }
-  .trading-pick.stance-bull { border-left-color: #16a34a; }
-  .trading-pick.stance-bear { border-left-color: #dc2626; }
+  .trading-pick.stance-bull { border-left-color: var(--positive); }
+  .trading-pick.stance-bear { border-left-color: var(--negative); }
   .trading-pick.stance-neutral { border-left-color: var(--muted); }
   .pick-head {
     display: flex;
@@ -1053,8 +1380,8 @@ export function renderHtml(
     border-radius: 999px;
     white-space: nowrap;
   }
-  .pick-stance-bull { background: rgba(22,163,74,0.12); color: #16a34a; }
-  .pick-stance-bear { background: rgba(220,38,38,0.12); color: #dc2626; }
+  .pick-stance-bull { background: rgba(22,163,74,0.12); color: var(--positive); }
+  .pick-stance-bear { background: rgba(220,38,38,0.12); color: var(--negative); }
   .pick-stance-neutral { background: var(--card); color: var(--muted); }
   .pick-rationale { margin: 0; font-size: 0.88rem; line-height: 1.65; color: var(--fg-soft); }
 
@@ -1112,8 +1439,8 @@ export function renderHtml(
   .ticker-price-block { text-align: right; flex-shrink: 0; }
   .ticker-price { display: block; font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
   .ticker-pct { display: inline-block; font-size: 0.82rem; font-weight: 500; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
-  .ticker-pct.positive, .positive { color: #16a34a; }
-  .ticker-pct.negative, .negative { color: #dc2626; }
+  .ticker-pct.positive, .positive { color: var(--positive); }
+  .ticker-pct.negative, .negative { color: var(--negative); }
 
   .ticker-indicators {
     display: grid;
@@ -1192,10 +1519,27 @@ export function renderHtml(
     <span class="eyebrow">${STR.siteTitle}</span>
     <h1 class="report-title">${date}</h1>
     ${process.env.WEB_MODE === "true" ? `<a class="archive-link" href="../archive.html">${STR.archiveLink}</a>` : ""}
+    <section class="hero-card">
+      <div class="hero-copy">
+        <span class="hero-eyebrow">${STR.mdTodayOverview}</span>
+        <p class="hero-headline">${escapeHtml(report.hero_headline || date)}</p>
+        ${report.daily_overview ? `<p class="overview-text">${escapeHtml(report.daily_overview)}</p>` : ""}
+        ${keywordHtml}
+      </div>
+      <div class="hero-metrics" aria-label="Report metrics">
+        <div class="hero-metric"><span>${STR.catTech}</span><strong>${counts.tech}</strong></div>
+        ${astock ? `<div class="hero-metric"><span>${STR.catAstock}</span><strong>${counts.astock}</strong></div>` : ""}
+        ${trading ? `<div class="hero-metric"><span>${STR.catTrading}</span><strong>${trading.tickers.length}</strong></div>` : ""}
+        <div class="hero-metric"><span>${STR.catFinance}</span><strong>${counts.finance}</strong></div>
+        <div class="hero-metric"><span>${STR.catPolitics}</span><strong>${counts.politics}</strong></div>
+        ${counts.community > 0 ? `<div class="hero-metric"><span>${STR.catCommunity}</span><strong>${counts.community}</strong></div>` : ""}
+      </div>
+    </section>
   </header>
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="tech">${CATEGORY_LABELS.tech}<span class="count">${counts.tech}</span></button>
+    ${astock ? `<button class="tab" data-tab="astock">${STR.catAstock}<span class="count">${counts.astock}</span></button>` : ""}
     ${trading ? `<button class="tab" data-tab="trading">${STR.catTrading}<span class="count">${trading.tickers.length}</span></button>` : ""}
     <button class="tab" data-tab="politics">${CATEGORY_LABELS.politics}<span class="count">${counts.politics}</span></button>
     <button class="tab" data-tab="finance">${CATEGORY_LABELS.finance}<span class="count">${counts.finance}</span></button>
@@ -1205,6 +1549,7 @@ export function renderHtml(
   <section class="panel active" data-panel="tech">
     ${renderRawCategoryPanel("tech", techMainSubs)}
   </section>
+  ${astock ? `<section class="panel" data-panel="astock">${renderAstockPanel(astock)}</section>` : ""}
   ${trading ? `<section class="panel" data-panel="trading">${renderTradingPanel(trading)}</section>` : ""}
   <section class="panel" data-panel="politics">
     ${renderRawCategoryPanel("politics", raw.politics)}
@@ -1276,6 +1621,236 @@ export function renderHtml(
 </script>
 </body>
 </html>`;
+}
+
+// ----- A-share panel -----
+
+const ASTOCK_TIER_ORDER = ["S", "A", "B", "X"] as const;
+
+function fmtCnyAmount(n: number | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  if (Math.abs(n) >= 1e8) return `${(n / 1e8).toFixed(2)}亿`;
+  if (Math.abs(n) >= 1e4) return `${(n / 1e4).toFixed(0)}万`;
+  return n.toFixed(0);
+}
+
+function formatTimestamp(value: string | undefined): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  try {
+    return d.toLocaleString(REPORT_LOCALE === "en" ? "en-GB" : "zh-CN", {
+      timeZone: getReportTz(),
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return value;
+  }
+}
+
+function astockTierStats(records: AstockRecord[]): Record<string, number> {
+  const stats: Record<string, number> = {};
+  for (const r of records) {
+    const tier = r.tier_pre_research ?? "B";
+    stats[tier] = (stats[tier] ?? 0) + 1;
+  }
+  return stats;
+}
+
+function sortAstock(records: AstockRecord[]): AstockRecord[] {
+  return [...records].sort(
+    (a, b) => (b.final_score ?? -Infinity) - (a.final_score ?? -Infinity),
+  );
+}
+
+function astockPulse(report: AstockReport, stats: Record<string, number>): string {
+  const candidates = report.metadata.candidate_count ?? report.records.length;
+  const riskCount = report.records.filter((r) => r.risk_tags.length > 0).length;
+  const top = sortAstock(
+    report.records.filter((r) => ["S", "A"].includes(r.tier_pre_research ?? "")),
+  )
+    .slice(0, 3)
+    .map((r) => `${r.code} ${r.name}`.trim())
+    .join("、");
+  const holdingsMissing = report.metadata.holdings_missing_signal ?? [];
+  if (REPORT_LOCALE === "en") {
+    return `Latest A-share scan for ${report.trade_date}: ${candidates} candidates, ${stats.S ?? 0} S-tier and ${stats.A ?? 0} A-tier names. Focus list: ${top || "none"}. ${riskCount} candidates carry risk tags; tracked holdings missing today signals: ${holdingsMissing.join(", ") || "none"}.`;
+  }
+  return `最新交易日 ${report.trade_date} 共筛出 ${candidates} 条候选，S 级 ${stats.S ?? 0} 只、A 级 ${stats.A ?? 0} 只。重点关注：${top || "暂无"}。带风险标签的候选 ${riskCount} 条；已持仓但当日未触发买入信号：${holdingsMissing.join("、") || "无"}。`;
+}
+
+function renderAstockMetric(label: string, value: string, sub = ""): string {
+  return `<div class="astock-metric">
+    <span>${escapeHtml(label)}</span>
+    <strong>${escapeHtml(value)}</strong>
+    ${sub ? `<small>${escapeHtml(sub)}</small>` : ""}
+  </div>`;
+}
+
+function renderAstockTierBadge(tier: string | undefined): string {
+  const value = tier || "B";
+  return `<span class="astock-tier tier-${escapeHtml(value.toLowerCase())}">${escapeHtml(value)}</span>`;
+}
+
+function astockTierLabel(tier: string): string {
+  if (REPORT_LOCALE === "en") {
+    return tier === "S"
+      ? "Research Focus"
+      : tier === "A"
+        ? "Candidate Pool"
+        : tier === "X"
+          ? "Excluded / Paused"
+          : "Watch Pool";
+  }
+  return tier === "S"
+    ? "重点研究"
+    : tier === "A"
+      ? "候选池"
+      : tier === "X"
+        ? "排除 / 暂缓"
+        : "观察池";
+}
+
+function renderAstockSignals(record: AstockRecord): string {
+  if (record.signals.length === 0) return `<span class="astock-muted">—</span>`;
+  return record.signals
+    .slice(0, 4)
+    .map((s) => `<span class="astock-signal">${escapeHtml(s)}</span>`)
+    .join("");
+}
+
+function renderAstockRisk(record: AstockRecord): string {
+  if (record.risk_tags.length === 0) return `<span class="astock-muted">—</span>`;
+  return record.risk_tags
+    .slice(0, 2)
+    .map((r) => `<span class="astock-risk-tag">${escapeHtml(r)}</span>`)
+    .join("");
+}
+
+function renderAstockFocusCard(record: AstockRecord, rank: number): string {
+  const pctCls = (record.change_pct ?? 0) >= 0 ? "positive" : "negative";
+  return `<article class="astock-focus-card">
+    <header class="astock-focus-head">
+      <div>
+        <span class="astock-rank">#${rank}</span>
+        ${renderAstockTierBadge(record.tier_pre_research)}
+      </div>
+      <strong>${fmtNum(record.final_score, 2)}</strong>
+    </header>
+    <h3>${escapeHtml(record.code)} ${escapeHtml(record.name)}</h3>
+    <dl class="astock-focus-stats">
+      <div><dt>${REPORT_LOCALE === "en" ? "Close" : "收盘"}</dt><dd>${fmtNum(record.close)}</dd></div>
+      <div><dt>${REPORT_LOCALE === "en" ? "Change" : "涨跌幅"}</dt><dd class="${pctCls}">${record.change_pct == null ? "—" : fmtPct(record.change_pct)}</dd></div>
+      <div><dt>${REPORT_LOCALE === "en" ? "Turnover" : "成交额"}</dt><dd>${fmtCnyAmount(record.amount)}</dd></div>
+    </dl>
+    <div class="astock-chip-row">${renderAstockSignals(record)}</div>
+    ${record.risk_tags.length > 0 ? `<div class="astock-chip-row risk">${renderAstockRisk(record)}</div>` : ""}
+  </article>`;
+}
+
+function renderAstockTierTable(tier: string, records: AstockRecord[]): string {
+  const rows = sortAstock(records)
+    .slice(0, 8)
+    .map((r, i) => {
+      const pctCls = (r.change_pct ?? 0) >= 0 ? "positive" : "negative";
+      return `<tr>
+        <td>${i + 1}</td>
+        <td><strong>${escapeHtml(r.code)}</strong><span>${escapeHtml(r.name)}</span></td>
+        <td>${fmtNum(r.close)}</td>
+        <td class="${pctCls}">${r.change_pct == null ? "—" : fmtPct(r.change_pct)}</td>
+        <td>${fmtCnyAmount(r.amount)}</td>
+        <td>${renderAstockSignals(r)}</td>
+        <td>${renderAstockRisk(r)}</td>
+        <td>${fmtNum(r.final_score, 2)}</td>
+      </tr>`;
+    })
+    .join("");
+  if (!rows) return "";
+  return `<section class="astock-tier-section">
+    <h3>${renderAstockTierBadge(tier)} <span>${astockTierLabel(tier)}</span></h3>
+    <div class="astock-table-wrap">
+      <table class="astock-table">
+        <thead><tr><th>#</th><th>${REPORT_LOCALE === "en" ? "Stock" : "股票"}</th><th>${REPORT_LOCALE === "en" ? "Close" : "收盘"}</th><th>${REPORT_LOCALE === "en" ? "Change" : "涨跌幅"}</th><th>${REPORT_LOCALE === "en" ? "Turnover" : "成交额"}</th><th>${REPORT_LOCALE === "en" ? "Signals" : "信号"}</th><th>${REPORT_LOCALE === "en" ? "Risk" : "风险"}</th><th>${REPORT_LOCALE === "en" ? "Score" : "分数"}</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
+function renderAstockPanel(report: AstockReport): string {
+  const stats = astockTierStats(report.records);
+  const generated = formatTimestamp(report.generated_at ?? report.metadata.generated_at);
+  const focusRecords = sortAstock(
+    report.records.filter((r) => ["S", "A"].includes(r.tier_pre_research ?? "")),
+  ).slice(0, 3);
+  const holdings = report.metadata.holdings ?? [];
+  const holdingsIn = report.metadata.holdings_in_signal_pool ?? [];
+  const holdingsMissing = report.metadata.holdings_missing_signal ?? [];
+  const targets = report.metadata.deep_research_targets ?? [];
+  const source = report.metadata.source ?? "";
+  const tierMix = ASTOCK_TIER_ORDER.map((tier) => `${tier} ${stats[tier] ?? 0}`).join(" · ");
+
+  return `<section class="astock-panel">
+    <div class="astock-hero">
+      <div>
+        <span class="eyebrow">${STR.astockMarketPulse}</span>
+        <h2>${STR.catAstock} · ${escapeHtml(report.trade_date)}</h2>
+        <p>${escapeHtml(astockPulse(report, stats))}</p>
+      </div>
+      <div class="astock-metrics">
+        ${renderAstockMetric(STR.astockTradeDate, report.trade_date)}
+        ${renderAstockMetric(STR.astockCandidateCount, String(report.metadata.candidate_count ?? report.records.length), tierMix)}
+        ${generated ? renderAstockMetric(STR.astockGeneratedAt, generated) : ""}
+        ${renderAstockMetric(STR.astockHoldingTrack, holdings.join("、") || "—", `${REPORT_LOCALE === "en" ? "In pool" : "在池"} ${holdingsIn.join("、") || "无"} · ${REPORT_LOCALE === "en" ? "Missing" : "未触发"} ${holdingsMissing.join("、") || "无"}`)}
+      </div>
+    </div>
+
+    ${source ? `<section class="astock-note"><span class="eyebrow">${STR.astockDataSource}</span><p>${escapeHtml(source)}</p></section>` : ""}
+
+    ${
+      focusRecords.length > 0
+        ? `<section class="astock-focus">
+      <h2 class="category-title trading-section-title">${STR.astockFocus}</h2>
+      <div class="astock-focus-grid">
+        ${focusRecords.map((r, i) => renderAstockFocusCard(r, i + 1)).join("")}
+      </div>
+    </section>`
+        : ""
+    }
+
+    <section class="astock-board">
+      <h2 class="category-title trading-section-title">${STR.astockTierBoard}</h2>
+      ${ASTOCK_TIER_ORDER.map((tier) =>
+        renderAstockTierTable(
+          tier,
+          report.records.filter((r) => (r.tier_pre_research ?? "B") === tier),
+        ),
+      ).join("")}
+    </section>
+
+    ${
+      targets.length > 0
+        ? `<section class="astock-research">
+      <h2 class="category-title trading-section-title">${STR.astockDeepResearch}</h2>
+      <div class="astock-research-list">
+        ${targets
+          .slice(0, 5)
+          .map((t) => `<span>${escapeHtml(t.name ? `${t.code} ${t.name}` : t.code)}</span>`)
+          .join("")}
+      </div>
+    </section>`
+        : ""
+    }
+
+    <section class="trading-risk astock-disclaimer">
+      <span class="eyebrow">${STR.tradingRiskCaveat}</span>
+      <p>${STR.astockRiskNotice}</p>
+    </section>
+  </section>`;
 }
 
 // ----- trading panel -----

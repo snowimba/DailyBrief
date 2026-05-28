@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 // Mirror deploy stdout/stderr into the daily log instead of the parent
 // stdio (which the scheduler swallowed anyway). Returns the spawnSync result.
 function spawnSyncShim(cmd, args, opts) {
-  const r = spawnSync(cmd, args, { ...opts, stdio: "pipe", shell: true });
+  const r = spawnSync(cmd, args, { ...opts, stdio: "pipe", shell: process.platform === "win32" });
   const out = (r.stdout?.toString("utf8") ?? "") + (r.stderr?.toString("utf8") ?? "");
   if (out) fs.appendFileSync(logFile, out);
   return r;
@@ -51,7 +51,7 @@ fs.appendFileSync(logFile, `[${now()}] running npm run daily\n`);
 // since we're not passing user-controlled args.
 const child = spawn("npm", ["run", "daily"], {
   cwd: projectRoot,
-  shell: true,
+  shell: process.platform === "win32",
   stdio: ["ignore", "pipe", "pipe"],
 });
 
@@ -84,7 +84,7 @@ child.on("close", (code) => {
     // cosmetic — the report exists on disk regardless.
     const opener = spawn("npm", ["run", "open"], {
       cwd: projectRoot,
-      shell: true,
+      shell: process.platform === "win32",
       detached: true,
       stdio: "ignore",
     });

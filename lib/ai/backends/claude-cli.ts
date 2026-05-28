@@ -38,7 +38,11 @@ export function runClaudeCli({
 
   return new Promise((resolve, reject) => {
     const child = spawn(cli, args, {
-      shell: true,
+      // Do not use a shell on POSIX: the prompt text contains backticks,
+      // braces, quotes, and Chinese punctuation that /bin/sh will try to
+      // execute when args are shell-concatenated. Windows .cmd resolution
+      // still needs shell mode.
+      shell: process.platform === "win32",
       stdio: ["pipe", "pipe", "pipe"],
     });
 

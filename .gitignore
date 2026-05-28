@@ -11,6 +11,8 @@
 # trending pipeline output (each fork generates its own)
 /daily_reports/
 /logs/
+/web_state/
+/data/                        # positions, alert state, snapshots, all user-private
 
 # Claude Code local state (skills + commands ARE committed; cache/state aren't)
 /.claude/state/
