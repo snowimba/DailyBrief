@@ -1441,7 +1441,7 @@ function openAddRuleDialog(positionId, kind) {
           errorEl.hidden = false;
           return;
         }
-        payload = { kind: "absolute", price, cooldownMin };
+        payload = { kind: "absolute", price, cooldownMin, label: `${k === "take_profit" ? "止盈" : "止损"} ¥${fmtPrice(price)}` };
       } else {
         const value = Number(fd.get("value"));
         if (!Number.isFinite(value) || value <= 0) {
@@ -1461,7 +1461,7 @@ function openAddRuleDialog(positionId, kind) {
           errorEl.hidden = false;
           return;
         }
-        payload = { kind: "absolute", price, cooldownMin };
+        payload = { kind: "absolute", price, cooldownMin, label: `当日触发 ¥${fmtPrice(price)}` };
       } else {
         const value = Number(fd.get("value"));
         if (!Number.isFinite(value)) {
