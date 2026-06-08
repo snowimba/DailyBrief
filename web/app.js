@@ -1417,10 +1417,11 @@ function openAddRuleDialog(positionId, kind) {
     // Likewise fresh-query form elements — they may have been added later.
     const priceEl = form.elements["priceValue"];
     const valEl = form.elements["value"];
-    // Re-derive cost from current snapshot at submit time.
+    // Re-derive cost and quote from current snapshot at submit time.
     const snapNow = getPositionsSnapshot();
     const posNow = snapNow?.positions.find((p) => p.id === pid);
     const costNow = posNow?.avgCost ?? 0;
+    const prevClose = posNow?.quote?.prevClose;
 
     let payload;
     if (k === "take_profit" || k === "stop_loss") {
@@ -1441,7 +1442,9 @@ function openAddRuleDialog(positionId, kind) {
           errorEl.hidden = false;
           return;
         }
-        payload = { kind: "absolute", price, cooldownMin, label: `${k === "take_profit" ? "止盈" : "止损"} ¥${fmtPrice(price)}` };
+        const pctFromCost = costNow ? ((price - costNow) / costNow * 100) : 0;
+        const sign = pctFromCost >= 0 ? "+" : "";
+        payload = { kind: "absolute", price, cooldownMin, label: `${k === "take_profit" ? "止盈" : "止损"} ¥${fmtPrice(price)} (${sign}${pctFromCost.toFixed(1)}%)` };
       } else {
         const value = Number(fd.get("value"));
         if (!Number.isFinite(value) || value <= 0) {
@@ -1461,7 +1464,9 @@ function openAddRuleDialog(positionId, kind) {
           errorEl.hidden = false;
           return;
         }
-        payload = { kind: "absolute", price, cooldownMin, label: `当日触发 ¥${fmtPrice(price)}` };
+        const pctFromClose = prevClose ? ((price - prevClose) / prevClose * 100) : 0;
+        const sign = pctFromClose >= 0 ? "+" : "";
+        payload = { kind: "absolute", price, cooldownMin, label: `当日触发 ¥${fmtPrice(price)} (${sign}${pctFromClose.toFixed(1)}%)` };
       } else {
         const value = Number(fd.get("value"));
         if (!Number.isFinite(value)) {
