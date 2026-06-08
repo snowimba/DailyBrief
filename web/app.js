@@ -1236,9 +1236,13 @@ function openAddRuleDialog(positionId, kind) {
   const subtitle = dialog.querySelector("[data-rule-dialog-subtitle]");
   const inputLabel = dialog.querySelector("[data-rule-input-label]");
   const valueInput = form.elements["value"];
+  const priceInput = form.elements["priceValue"];   // may be undefined if server HTML not yet updated
   const cooldownInput = form.elements["cooldownMin"];
   const hint = dialog.querySelector("[data-rule-input-hint]");
   const errorEl = dialog.querySelector("[data-rule-form-error]");
+  const modeToggle = dialog.querySelector("[data-rule-mode-toggle]");
+  const modeBtns = modeToggle?.querySelectorAll("[data-rule-mode]");
+  const hasPriceInput = Boolean(priceInput);
 
   // Stash context on the dialog for the submit handler.
   dialog.dataset.positionId = positionId;
@@ -1257,20 +1261,92 @@ function openAddRuleDialog(positionId, kind) {
   errorEl.hidden = true;
   errorEl.textContent = "";
 
+  // Reset inputs and mode toggle.
+  valueInput.value = "";
+  valueInput.hidden = false;
+  valueInput.required = true;
+  if (hasPriceInput) {
+    priceInput.value = "";
+    priceInput.hidden = true;
+    priceInput.required = false;
+  }
+  const isTpSl = kind === "take_profit" || kind === "stop_loss";
+  if (modeToggle) modeToggle.hidden = !isTpSl;
+
+  // Current active mode for tp/sl — "pct" or "price".  Falls back to pct if the
+  // price-input HTML hasn't been deployed yet (old server template).
+  const getMode = () => {
+    if (!hasPriceInput) return "pct";
+    const active = modeToggle?.querySelector(".mode-btn.active");
+    return active?.dataset.ruleMode || "pct";
+  };
+  const setMode = (m) => {
+    const cost = pos?.avgCost ?? 0;
+    for (const b of modeBtns || []) b.classList.toggle("active", b.dataset.ruleMode === m);
+    if (m === "price" && hasPriceInput) {
+      valueInput.hidden = true;
+      valueInput.required = false;
+      priceInput.hidden = false;
+      priceInput.required = true;
+      if (kind === "take_profit") priceInput.value = cost ? fmtPrice(cost * 1.05) : "";
+      else if (kind === "stop_loss") priceInput.value = cost ? fmtPrice(cost * 0.93) : "";
+      updateHint();
+      setTimeout(() => priceInput.select(), 0);
+    } else {
+      valueInput.hidden = false;
+      valueInput.required = true;
+      if (hasPriceInput) {
+        priceInput.hidden = true;
+        priceInput.required = false;
+      }
+      valueInput.min = "0.01";
+      valueInput.value = kind === "take_profit" ? "5" : kind === "stop_loss" ? "7" : "-5";
+      updateHint();
+      setTimeout(() => valueInput.select(), 0);
+    }
+  };
+
+  const updateHint = () => {
+    const m = getMode();
+    const cost = pos?.avgCost ?? 0;
+    if (!isTpSl) {
+      hint.textContent = "例:输入 -5 表示当日相对昨收下跌 5% 时触发";
+      return;
+    }
+    if (m === "price" && hasPriceInput) {
+      const p = Number(priceInput.value);
+      if (!p || !cost) {
+        hint.textContent = kind === "take_profit"
+          ? `输入高于成本价 (¥${fmtPrice(cost)}) 的触发价`
+          : `输入低于成本价 (¥${fmtPrice(cost)}) 的触发价`;
+      } else {
+        const pct = ((p - cost) / cost * 100);
+        hint.textContent = `触发价 ¥${fmtPrice(p)} · 相当于成本 ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}% · 现价穿越后只触发一次`;
+      }
+    } else {
+      const v = Number(valueInput.value);
+      if (!v || v <= 0 || !cost) {
+        hint.textContent = kind === "take_profit"
+          ? `例:输入 5 → 触发价 ¥${fmtPrice(cost * 1.05)} · 现价穿越后只触发一次,冷却时间内不重发`
+          : `例:输入 7 → 触发价 ¥${fmtPrice(cost * 0.93)} · 现价跌破后只触发一次`;
+      } else {
+        const trigger = kind === "take_profit" ? cost * (1 + v / 100) : cost * (1 - v / 100);
+        hint.textContent = `触发价 ¥${fmtPrice(trigger)} · 现价${kind === "take_profit" ? "穿越" : "跌破"}后只触发一次`;
+      }
+    }
+  };
+
   if (kind === "take_profit") {
     title.textContent = "加止盈位";
-    inputLabel.textContent = "止盈百分比(成本 + ?%)";
-    valueInput.value = "5";
-    valueInput.min = "0.01";
-    hint.textContent = `例:输入 5 → 触发价 ¥${fmtPrice(cost * 1.05)} · 现价穿越后只触发一次,冷却时间内不重发`;
+    inputLabel.textContent = "止盈设置";
+    setMode("pct");
   } else if (kind === "stop_loss") {
     title.textContent = "加止损位";
-    inputLabel.textContent = "止损百分比(成本 - ?%)";
-    valueInput.value = "7";
-    valueInput.min = "0.01";
-    hint.textContent = `例:输入 7 → 触发价 ¥${fmtPrice(cost * 0.93)} · 现价跌破后只触发一次`;
+    inputLabel.textContent = "止损设置";
+    setMode("pct");
   } else {
-    // daily change pct
+    // daily change pct — no price mode (percentage only)
+    setMode("pct"); // reset stale state from previous tp/sl dialog
     title.textContent = "加当日涨跌阈值";
     inputLabel.textContent = "当日涨跌阈值(%,正数大涨 / 负数大跌)";
     valueInput.value = "-5";
@@ -1278,9 +1354,17 @@ function openAddRuleDialog(positionId, kind) {
     hint.textContent = "例:输入 -5 表示当日相对昨收下跌 5% 时触发";
   }
 
+  // Mode toggle buttons
+  for (const b of modeBtns || []) {
+    b.onclick = () => setMode(b.dataset.ruleMode);
+  }
+
+  // Live hint update as user types (use oninput to auto-replace stale handlers)
+  valueInput.oninput = updateHint;
+  if (hasPriceInput) priceInput.oninput = updateHint;
+
   dialog.showModal();
-  // Wait until next frame to focus, otherwise the modal hasn't fully rendered.
-  setTimeout(() => valueInput.select(), 0);
+  if (isTpSl) setTimeout(() => valueInput.select(), 0);
 
   if (dialog.dataset.bound) return;
   dialog.dataset.bound = "1";
@@ -1294,31 +1378,57 @@ function openAddRuleDialog(positionId, kind) {
     event.preventDefault();
     errorEl.hidden = true;
     const fd = new FormData(form);
-    const value = Number(fd.get("value"));
     const cooldownMin = Number(fd.get("cooldownMin")) || 60;
-    if (!Number.isFinite(value)) {
-      errorEl.textContent = "百分比必须是数字";
-      errorEl.hidden = false;
-      return;
-    }
     const k = dialog.dataset.kind;
     const pid = dialog.dataset.positionId;
+    const isTpSl = k === "take_profit" || k === "stop_loss";
+    const m = isTpSl
+      ? (modeToggle?.querySelector(".mode-btn.active")?.dataset.ruleMode || "pct")
+      : "pct";
+    const priceEl = form.elements["priceValue"];
+    const valEl = form.elements["value"];
+    // Re-derive cost from current snapshot at submit time.
+    const snapNow = getPositionsSnapshot();
+    const posNow = snapNow?.positions.find((p) => p.id === pid);
+    const costNow = posNow?.avgCost ?? 0;
+
     let payload;
-    if (k === "take_profit") {
-      if (value <= 0) {
-        errorEl.textContent = "止盈百分比必须 > 0,例如 5 / 10";
-        errorEl.hidden = false;
-        return;
+    if (k === "take_profit" || k === "stop_loss") {
+      if (m === "price" && priceEl) {
+        const price = Number(priceEl.value);
+        if (!Number.isFinite(price) || price <= 0) {
+          errorEl.textContent = "价格必须是正数";
+          errorEl.hidden = false;
+          return;
+        }
+        if (k === "take_profit" && price <= costNow) {
+          errorEl.textContent = `止盈价必须高于成本 ¥${fmtPrice(costNow)}`;
+          errorEl.hidden = false;
+          return;
+        }
+        if (k === "stop_loss" && price >= costNow) {
+          errorEl.textContent = `止损价必须低于成本 ¥${fmtPrice(costNow)}`;
+          errorEl.hidden = false;
+          return;
+        }
+        payload = { kind: "absolute", price, cooldownMin };
+      } else {
+        const value = Number(fd.get("value"));
+        if (!Number.isFinite(value) || value <= 0) {
+          errorEl.textContent = "百分比必须是大于 0 的数字";
+          errorEl.hidden = false;
+          return;
+        }
+        const pct = k === "take_profit" ? Math.abs(value) : -Math.abs(value);
+        payload = { kind: "pct_from_cost", pct, cooldownMin };
       }
-      payload = { kind: "pct_from_cost", pct: Math.abs(value), cooldownMin };
-    } else if (k === "stop_loss") {
-      if (value <= 0) {
-        errorEl.textContent = "止损百分比必须 > 0,例如 7 / 10";
-        errorEl.hidden = false;
-        return;
-      }
-      payload = { kind: "pct_from_cost", pct: -Math.abs(value), cooldownMin };
     } else {
+      const value = Number(fd.get("value"));
+      if (!Number.isFinite(value)) {
+        errorEl.textContent = "阈值必须是数字";
+        errorEl.hidden = false;
+        return;
+      }
       if (value === 0) {
         errorEl.textContent = "阈值不能为 0";
         errorEl.hidden = false;

@@ -139,7 +139,7 @@ export async function deletePosition(id: string): Promise<void> {
 
 // ---- rules ----
 
-function ruleLabelFromInput(input: NewRuleInput): string {
+function ruleLabelFromInput(input: NewRuleInput, avgCost?: number): string {
   if (input.label) return input.label;
   if (input.kind === "pct_from_cost" && input.pct !== undefined) {
     const sign = input.pct > 0 ? "+" : "";
@@ -147,6 +147,12 @@ function ruleLabelFromInput(input: NewRuleInput): string {
     return `${sign}${input.pct}% ${what}`;
   }
   if (input.kind === "absolute" && input.price !== undefined) {
+    if (avgCost != null) {
+      const what = input.price > avgCost ? "止盈" : "止损";
+      const pct = ((input.price - avgCost) / avgCost * 100);
+      const sign = pct >= 0 ? "+" : "";
+      return `${what} ¥${input.price} (${sign}${pct.toFixed(1)}%)`;
+    }
     return `绝对价 ¥${input.price}`;
   }
   if (input.kind === "daily_change_pct" && input.dailyPct !== undefined) {
@@ -156,10 +162,13 @@ function ruleLabelFromInput(input: NewRuleInput): string {
   return "规则";
 }
 
-function defaultTrigger(input: NewRuleInput): "cross_up" | "cross_down" | "any" {
+function defaultTrigger(input: NewRuleInput, avgCost?: number): "cross_up" | "cross_down" | "any" {
   if (input.trigger) return input.trigger;
   if (input.kind === "pct_from_cost" && input.pct !== undefined) {
     return input.pct > 0 ? "cross_up" : "cross_down";
+  }
+  if (input.kind === "absolute" && input.price !== undefined && avgCost != null) {
+    return input.price > avgCost ? "cross_up" : "cross_down";
   }
   if (input.kind === "daily_change_pct" && input.dailyPct !== undefined) {
     return input.dailyPct > 0 ? "cross_up" : "cross_down";
@@ -187,11 +196,11 @@ export async function addRule(positionId: string, input: NewRuleInput): Promise<
     pct: input.pct,
     price: input.price,
     dailyPct: input.dailyPct,
-    trigger: defaultTrigger(input),
+    trigger: defaultTrigger(input, list[idx].avgCost),
     cooldownMin: input.cooldownMin ?? 60,
     channels: input.channels ?? ["browser"],
     enabled: input.enabled ?? true,
-    label: ruleLabelFromInput(input),
+    label: ruleLabelFromInput(input, list[idx].avgCost),
   };
   list[idx] = {
     ...list[idx],

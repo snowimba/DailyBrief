@@ -899,6 +899,36 @@ body {
   font-size: 12px;
   font-weight: 400;
 }
+.rule-mode-toggle {
+  display: inline-flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.mode-btn {
+  padding: 4px 14px;
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-btn:not(:last-child) {
+  border-right: 1px solid var(--line);
+}
+.mode-btn.active {
+  color: #fff;
+  background: var(--accent);
+}
+.mode-btn:not(.active):hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .form-error {
   margin: 0;
   padding: 10px 14px;

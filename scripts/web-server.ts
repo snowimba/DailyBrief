@@ -141,7 +141,12 @@ function dashboardHtml(): string {
       <div class="form-grid">
         <label class="span-2">
           <span data-rule-input-label>止盈百分比</span>
+          <div class="rule-mode-toggle" data-rule-mode-toggle hidden>
+            <button type="button" class="mode-btn active" data-rule-mode="pct">百分比</button>
+            <button type="button" class="mode-btn" data-rule-mode="price">价格</button>
+          </div>
           <input name="value" type="number" step="0.01" required autofocus>
+          <input name="priceValue" type="number" step="0.001" min="0.001" hidden>
           <small data-rule-input-hint></small>
         </label>
         <label>
