@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 
 import type { RefreshResult, TabProvider } from "../types";
@@ -12,9 +13,6 @@ import {
   refreshAnnouncementsBg,
   type AnnouncementItem,
 } from "./announcements";
-import fs from "node:fs/promises";
-import path from "node:path";
-
 import { bjNow } from "../../utils";
 import { getIndustry } from "./industry";
 import { fetchQuotes, qualified } from "./quote-source";
@@ -23,7 +21,52 @@ import {
   loadAlertState,
 } from "./store";
 import { telegramDispatcher, getTelegramConfig } from "./telegram";
-import type { AlertEvent, Position, QuoteSummary } from "./types";
+import type {
+  AlertEvent,
+  BlockTradeItem,
+  CalendarEvent,
+  DragonTigerItem,
+  FundFlowItem,
+  Position,
+  QuoteSummary,
+  STRiskItem,
+} from "./types";
+import { extractBlockTradesBySymbol } from "./block-trades";
+import { fetchCalendarEvents, getCachedCalendarEvents } from "./calendar";
+import { fetchDragonTiger, getCachedDragonTiger } from "./dragon-tiger";
+import { fetchFundFlow, getCachedFundFlow } from "./fund-flow";
+import { fetchSTRisks, getCachedSTRisks } from "./st-risk";
+
+// ---- T4 background refresh ----
+
+let t4Refreshing = false;
+let t4LastAttempt = 0;
+const T4_REFRESH_COOLDOWN_MS = 10 * 60_000; // 10 min between attempts
+
+async function refreshT4Bg(
+  positions: Array<{ symbol: string; exchange: string; name?: string }>,
+): Promise<void> {
+  // Don't re-trigger if already refreshing or if last attempt was recent.
+  const now = Date.now();
+  if (t4Refreshing) return;
+  if (now - t4LastAttempt < T4_REFRESH_COOLDOWN_MS) return;
+
+  const symbols = positions.map((p) => p.symbol);
+  t4Refreshing = true;
+  t4LastAttempt = now;
+  try {
+    await Promise.all([
+      fetchFundFlow(positions),
+      fetchDragonTiger(symbols),
+      fetchSTRisks(symbols),
+      fetchCalendarEvents(symbols),
+    ]);
+  } catch {
+    // Individual fetchers handle their own errors.
+  } finally {
+    t4Refreshing = false;
+  }
+}
 
 const TICK_TRADING_MS = Number(process.env.POSITIONS_TICK_TRADING_MS ?? 5_000);
 const TICK_OFFHOURS_MS = Number(process.env.POSITIONS_TICK_OFFHOURS_MS ?? 60_000);
@@ -91,6 +134,13 @@ interface SnapshotPayload {
   telegramReady: boolean;
   /** Last 7 days of {date, floatingPnL} for sparkline chart. */
   trend: Array<{ date: string; floatingPnL: number }>;
+  /** T4 risk data */
+  fundFlows: FundFlowItem[];
+  dragonTiger: DragonTigerItem[];
+  blockTrades: BlockTradeItem[];
+  calendarEvents: CalendarEvent[];
+  stRisks: STRiskItem[];
+  riskDataFetchedAt?: string;
 }
 
 const RUNG_PCTS = [-10, -5, -3, -1, 1, 3, 5, 10];
@@ -146,6 +196,11 @@ export async function buildSnapshot(): Promise<SnapshotPayload> {
       isTradingHours: isTradingHours(),
       telegramReady: !!getTelegramConfig(),
       trend,
+      fundFlows: [],
+      dragonTiger: [],
+      blockTrades: [],
+      calendarEvents: [],
+      stRisks: [],
     };
   }
   const quals = positions.map((p) => qualified(p.symbol, p.exchange));
@@ -160,6 +215,16 @@ export async function buildSnapshot(): Promise<SnapshotPayload> {
   const annMap = getCachedAnnouncements(
     positions.map((p) => ({ symbol: p.symbol, name: p.name })),
   );
+
+  // T4: Read from cache (fast); kick off async refresh for next tick.
+  const posSymbols = positions.map((p) => p.symbol);
+  refreshT4Bg(positions).catch((e) => console.warn("[positions] T4 bg refresh failed:", e instanceof Error ? e.message : e));
+  const fundFlowMap = getCachedFundFlow() ?? new Map();
+  const dtMap = getCachedDragonTiger() ?? new Map();
+  const stRiskMap = getCachedSTRisks() ?? new Map();
+  const calendarEvents = getCachedCalendarEvents() ?? [];
+  const blockTrades = extractBlockTradesBySymbol(annMap);
+  const riskDataFetchedAt = bjNow().iso;
 
   const annotated: SnapshotPayload["positions"] = [];
   for (const p of positions) {
@@ -203,6 +268,9 @@ export async function buildSnapshot(): Promise<SnapshotPayload> {
       todayPnL,
       rungs,
       announcements: annMap[pos.symbol] ?? [],
+      fundFlow: fundFlowMap.get(pos.symbol),
+      dragonTiger: dtMap.get(pos.symbol),
+      stRisk: stRiskMap.get(pos.symbol),
     });
   }
 
@@ -223,6 +291,12 @@ export async function buildSnapshot(): Promise<SnapshotPayload> {
     isTradingHours: isTradingHours(),
     telegramReady: !!getTelegramConfig(),
     trend,
+    fundFlows: [...fundFlowMap.values()],
+    dragonTiger: [...dtMap.values()].flat(),
+    blockTrades,
+    calendarEvents,
+    stRisks: [...stRiskMap.values()].filter((r) => r.riskLevel !== "normal"),
+    riskDataFetchedAt,
   };
 }
 
@@ -409,7 +483,8 @@ function wrapSnapshot(snap: SnapshotPayload): RefreshResult {
     refreshedAt: snap.generatedAt,
     title: "盯盘助手",
     summary: snap.positions.length
-      ? `共 ${snap.positions.length} 条持仓 · 总市值 ¥${snap.totals.marketValue.toFixed(2)}`
+      ? `共 ${snap.positions.length} 条持仓 · 总市值 ¥${snap.totals.marketValue.toFixed(2)}` +
+        (snap.stRisks?.length ? ` · ${snap.stRisks.length} 只ST/退市风险` : "")
       : "尚无持仓,点击上方加一条",
     html: "",
     meta: { snapshot: snap },

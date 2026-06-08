@@ -118,3 +118,75 @@ export interface NewRuleInput {
   label?: string;
   enabled?: boolean;
 }
+
+// ---- T4 risk data types ----
+
+export interface FundFlowItem {
+  symbol: string;
+  name: string;
+  /** 主力净流入 (元) — negative = outflow */
+  mainNetInflow: number;
+  superLargeInflow: number;
+  largeInflow: number;
+  mediumInflow: number;
+  smallInflow: number;
+  date: string;
+  fetchedAt: string;
+}
+
+export interface DragonTigerItem {
+  symbol: string;
+  name: string;
+  boardDate: string;
+  reason: string;
+  closePrice: number;
+  changePct: number;
+  netBuyAmount: number;
+  buyAmount: number;
+  sellAmount: number;
+  totalDealAmount: number;
+  marketDealAmount: number;
+  fetchedAt: string;
+}
+
+export interface BlockTradeItem {
+  symbol: string;
+  title: string;
+  summary: string;
+  url: string;
+  publishedAt: string;
+  tag: "大宗交易" | "减持" | "增持" | "质押" | "解禁";
+  tradePrice?: number;
+  tradeVolume?: number;
+  discountRate?: number;
+}
+
+export interface CalendarEvent {
+  symbol: string;
+  name: string;
+  eventDate: string;
+  eventType: "年报" | "半年报" | "分红除权" | "股权登记" | "股东大会";
+  description: string;
+  dividendPerShare?: number;
+  dividendYield?: number;
+  fetchedAt: string;
+}
+
+export interface STRiskItem {
+  symbol: string;
+  name: string;
+  riskLevel: "st" | "star_st" | "delisted" | "normal";
+  delistDate?: string;
+  fetchedAt: string;
+}
+
+/** Position annotated with quote + industry + risk data for snapshot serialization. */
+export interface PositionAnnotated extends Position {
+  quote?: QuoteSummary;
+  holdDays?: number;
+  industry?: string;
+  announcements?: import("./announcements").NewsItem[];
+  fundFlow?: FundFlowItem;
+  dragonTiger?: DragonTigerItem[];
+  stRisk?: STRiskItem;
+}

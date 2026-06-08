@@ -28,21 +28,55 @@ import { fetchCryptoGlobal } from "../lib/trading/coingecko";
 import { generateTradingCommentary } from "../lib/ai/trading-commentary";
 import type { TradingSection } from "../lib/ai/pipeline";
 import { bjIso, todayKey } from "../lib/utils";
+import { loadCachedFetch, saveCachedFetch } from "../lib/sources/fetch-cache";
 
 const OUTPUT_DIR = "daily_reports";
 
-async function fetchAll(): Promise<ArticleInput[]> {
+/**
+ * Fetch all enabled sources, consulting the per-source fetch cache first
+ * when `useCache` is true. On a successful network fetch the result is
+ * saved to cache so subsequent runs can skip the network call.
+ */
+async function fetchAll(date: string, useCache: boolean): Promise<ArticleInput[]> {
   const articles: ArticleInput[] = [];
+  let fromCache = 0;
+  let fresh = 0;
+  let failed = 0;
   const enabled = sources.filter((s) => s.enabled !== false);
+
   for (const source of enabled) {
+    // Try cache first.
+    if (useCache) {
+      const cached = loadCachedFetch(source.id, date);
+      if (cached) {
+        console.log(
+          `  ${source.id.padEnd(20)} ${String(cached.articles.length).padStart(4)}  (cached, ${cached.ageMinutes}m old)`,
+        );
+        articles.push(...cached.articles.map((it) => ({ ...it, source: source.name })));
+        fromCache++;
+        continue;
+      }
+    }
+
+    // Cache miss or cache disabled — fetch from network.
     try {
       const items = await fetchSource(source);
-      console.log(`  ${source.id.padEnd(20)} ${items.length}`);
+      console.log(`  ${source.id.padEnd(20)} ${String(items.length).padStart(4)}`);
       articles.push(...items.map((it) => ({ ...it, source: source.name })));
+      // Persist to cache on success.
+      saveCachedFetch(source.id, date, items);
+      fresh++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`  ${source.id.padEnd(20)} FAILED — ${msg}`);
+      failed++;
     }
+  }
+
+  if (useCache) {
+    console.log(
+      `\n[daily] fetch summary: ${fromCache} from cache, ${fresh} fresh, ${failed} failed`,
+    );
   }
   return articles;
 }
@@ -213,8 +247,9 @@ async function runTrading(): Promise<TradingSection | null> {
 
 async function main() {
   const date = todayKey();
-  console.log(`[daily] ${date} — fetching sources…\n`);
-  const articles = await fetchAll();
+  const useCache = !process.argv.includes("--no-cache") && process.env.CI !== "true";
+  console.log(`[daily] ${date} — fetching sources${useCache ? " (cache enabled)" : " (cache disabled)"}…\n`);
+  const articles = await fetchAll(date, useCache);
   console.log(`\n[daily] total articles: ${articles.length}`);
   if (articles.length === 0) {
     throw new Error("no articles fetched — aborting");

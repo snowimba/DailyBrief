@@ -209,7 +209,10 @@ async function loadTab(
     return;
   }
   const cached = await latestState<RefreshResult>(provider.id);
-  const result = cached ?? (await provider.loadLatest());
+  const latest = await provider.loadLatest();
+  // Use whichever is newer (scheduled runs may have produced a fresher report
+  // than what's in the web_state cache).
+  const result = (!cached || (latest && latest.date > cached.date)) ? latest : cached;
   if (!result) {
     sendJson(res, 404, { error: `${provider.label} 暂无可用数据` });
     return;
@@ -231,24 +234,50 @@ async function historyTab(id: string, res: http.ServerResponse): Promise<void> {
   sendJson(res, 200, { dates });
 }
 
+// Store active refresh promises and their results, keyed by tab id.
+const refreshState = new Map<string, { promise: Promise<unknown>; result?: RefreshResult; error?: string }>();
+
+function refreshStatus(id: string): "idle" | "running" | "done" | "error" {
+  const s = refreshState.get(id);
+  if (!s) return "idle";
+  if (s.result) return "done";
+  if (s.error) return "error";
+  return "running";
+}
+
 async function refreshTab(id: string, res: http.ServerResponse): Promise<void> {
   const provider = getProvider(id);
   if (!provider) {
     sendJson(res, 404, { error: `unknown tab: ${id}` });
     return;
   }
-  let promise = activeRefreshes.get(provider.id);
-  if (!promise) {
-    promise = provider.refresh().finally(() => {
-      activeRefreshes.delete(provider.id);
-    });
-    activeRefreshes.set(provider.id, promise);
+  const status = refreshStatus(id);
+  if (status === "running") {
+    sendJson(res, 202, { status: "running", message: `${provider.label} 正在刷新中…` });
+    return;
   }
-  try {
-    sendJson(res, 200, await promise);
-  } catch (e) {
-    sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+  if (status === "done") {
+    const result = refreshState.get(id)!.result!;
+    sendJson(res, 200, result);
+    refreshState.delete(id); // consume the result once
+    return;
   }
+  if (status === "error") {
+    const err = refreshState.get(id)!.error!;
+    refreshState.delete(id);
+    sendJson(res, 500, { error: err });
+    return;
+  }
+  // status === "idle" — start a new refresh.
+  const entry = { promise: null as unknown as Promise<unknown> };
+  const promise = provider.refresh()
+    .then((result) => { entry.result = result; })
+    .catch((e) => { entry.error = e instanceof Error ? e.message : String(e); });
+  entry.promise = promise;
+  refreshState.set(provider.id, entry);
+  // Clean up after 20 min (in case frontend never collects).
+  setTimeout(() => { if (refreshState.get(provider.id) === entry) refreshState.delete(provider.id); }, 20 * 60_000);
+  sendJson(res, 202, { status: "started", message: `${provider.label} 刷新已启动，预计 5-8 分钟完成。` });
 }
 
 async function handleAsset(asset: string, res: http.ServerResponse): Promise<void> {
@@ -428,6 +457,22 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse): Promi
   }
   if (tabMatch && req.method === "GET" && tabMatch[2] === "/history") {
     await historyTab(tabMatch[1], res);
+    return;
+  }
+  if (tabMatch && req.method === "GET" && tabMatch[2] === "/refresh") {
+    // Poll refresh status without starting a new one.
+    const status = refreshStatus(tabMatch[1]);
+    if (status === "done") {
+      const result = refreshState.get(tabMatch[1])!.result!;
+      refreshState.delete(tabMatch[1]);
+      sendJson(res, 200, result);
+    } else if (status === "error") {
+      const err = refreshState.get(tabMatch[1])!.error!;
+      refreshState.delete(tabMatch[1]);
+      sendJson(res, 500, { error: err });
+    } else {
+      sendJson(res, 202, { status });
+    }
     return;
   }
   if (tabMatch && req.method === "POST" && tabMatch[2] === "/refresh") {

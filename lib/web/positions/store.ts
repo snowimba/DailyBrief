@@ -46,10 +46,10 @@ async function readJsonOr<T>(file: string, fallback: T): Promise<T> {
 
 export function inferExchange(symbol: string): Exchange {
   // A-share rules:
-  //   6 / 9 → sh; 0 / 3 / 2 → sz; 4 / 8 → bj (selected new boards / 北交所).
-  // Heuristic, mirrors what Sina/Tencent expects in the qualified prefix.
+  //   5 / 6 / 9 → sh (5=Shanghai ETF, 6/9=Shanghai A/B shares);
+  //   0 / 3 / 2 → sz; 4 / 8 → bj (Beijing / 北交所).
   const c = symbol[0];
-  if (c === "6" || c === "9") return "sh";
+  if (c === "5" || c === "6" || c === "9") return "sh";
   if (c === "4" || c === "8") return "bj";
   return "sz";
 }
