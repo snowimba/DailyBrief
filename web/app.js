@@ -1271,9 +1271,10 @@ function openAddRuleDialog(positionId, kind) {
     priceInput.required = false;
   }
   const isTpSl = kind === "take_profit" || kind === "stop_loss";
-  if (modeToggle) modeToggle.hidden = !isTpSl;
+  const hasPriceMode = isTpSl || kind === "daily";
+  if (modeToggle) modeToggle.hidden = !hasPriceMode;
 
-  // Current active mode for tp/sl — "pct" or "price".  Falls back to pct if the
+  // Current active mode — "pct" or "price". Falls back to pct if the
   // price-input HTML hasn't been deployed yet (old server template).
   const getMode = () => {
     if (!hasPriceInput) return "pct";
@@ -1290,6 +1291,10 @@ function openAddRuleDialog(positionId, kind) {
       priceInput.required = true;
       if (kind === "take_profit") priceInput.value = cost ? fmtPrice(cost * 1.05) : "";
       else if (kind === "stop_loss") priceInput.value = cost ? fmtPrice(cost * 0.93) : "";
+      else if (kind === "daily") {
+        const ref = pos?.quote?.last ?? cost;
+        priceInput.value = ref ? fmtPrice(ref) : "";
+      }
       updateHint();
       setTimeout(() => priceInput.select(), 0);
     } else {
@@ -1299,7 +1304,7 @@ function openAddRuleDialog(positionId, kind) {
         priceInput.hidden = true;
         priceInput.required = false;
       }
-      valueInput.min = "0.01";
+      if (kind !== "daily") valueInput.min = "0.01";
       valueInput.value = kind === "take_profit" ? "5" : kind === "stop_loss" ? "7" : "-5";
       updateHint();
       setTimeout(() => valueInput.select(), 0);
@@ -1309,8 +1314,30 @@ function openAddRuleDialog(positionId, kind) {
   const updateHint = () => {
     const m = getMode();
     const cost = pos?.avgCost ?? 0;
-    if (!isTpSl) {
-      hint.textContent = "例:输入 -5 表示当日相对昨收下跌 5% 时触发";
+    const prevClose = pos?.quote?.prevClose;
+    if (kind === "daily") {
+      if (m === "price" && hasPriceInput) {
+        const p = Number(priceInput.value);
+        if (!p || !prevClose) {
+          hint.textContent = prevClose
+            ? `输入触发价 · 昨日收盘 ¥${fmtPrice(prevClose)}`
+            : `输入触发价 · 暂无昨收数据`;
+        } else {
+          const dailyPct = ((p - prevClose) / prevClose * 100);
+          hint.textContent = `触发价 ¥${fmtPrice(p)} · 相当于当日 ${dailyPct >= 0 ? "+" : ""}${dailyPct.toFixed(2)}% · 现价穿越后只触发一次`;
+        }
+      } else {
+        const v = Number(valueInput.value);
+        if (!Number.isFinite(v) || v === 0) {
+          hint.textContent = prevClose
+            ? `例:输入 -5 → 昨日收盘 ¥${fmtPrice(prevClose)} · 跌 5% 触发价为 ¥${fmtPrice(prevClose * 0.95)}`
+            : `例:输入 -5 · 负数下跌触发，正数上涨触发`;
+        } else {
+          hint.textContent = prevClose
+            ? `当日 ${v >= 0 ? "+" : ""}${v}% · 昨收 ¥${fmtPrice(prevClose)} → 触发价 ¥${fmtPrice(prevClose * (1 + v / 100))}`
+            : `当日 ${v >= 0 ? "+" : ""}${v}% 时触发`;
+        }
+      }
       return;
     }
     if (m === "price" && hasPriceInput) {
@@ -1345,13 +1372,11 @@ function openAddRuleDialog(positionId, kind) {
     inputLabel.textContent = "止损设置";
     setMode("pct");
   } else {
-    // daily change pct — no price mode (percentage only)
-    setMode("pct"); // reset stale state from previous tp/sl dialog
+    // daily change pct — also supports price mode (absolute-price alert)
     title.textContent = "加当日涨跌阈值";
-    inputLabel.textContent = "当日涨跌阈值(%,正数大涨 / 负数大跌)";
-    valueInput.value = "-5";
+    inputLabel.textContent = "当日涨跌设置";
+    setMode("pct"); // default to pct, resets stale state
     valueInput.removeAttribute("min");
-    hint.textContent = "例:输入 -5 表示当日相对昨收下跌 5% 时触发";
   }
 
   // Mode toggle buttons
@@ -1382,10 +1407,11 @@ function openAddRuleDialog(positionId, kind) {
     const k = dialog.dataset.kind;
     const pid = dialog.dataset.positionId;
     const isTpSl = k === "take_profit" || k === "stop_loss";
+    const hasPriceMode = isTpSl || k === "daily";
     // Fresh-query from DOM (NOT closure) — the toggle may not have existed
     // when the submit handler was first bound.
     const freshToggle = dialog.querySelector("[data-rule-mode-toggle]");
-    const m = isTpSl
+    const m = hasPriceMode
       ? (freshToggle?.querySelector(".mode-btn.active")?.dataset.ruleMode || "pct")
       : "pct";
     // Likewise fresh-query form elements — they may have been added later.
@@ -1427,18 +1453,29 @@ function openAddRuleDialog(positionId, kind) {
         payload = { kind: "pct_from_cost", pct, cooldownMin };
       }
     } else {
-      const value = Number(fd.get("value"));
-      if (!Number.isFinite(value)) {
-        errorEl.textContent = "阈值必须是数字";
-        errorEl.hidden = false;
-        return;
+      // daily
+      if (m === "price" && priceEl) {
+        const price = Number(priceEl.value);
+        if (!Number.isFinite(price) || price <= 0) {
+          errorEl.textContent = "价格必须是正数";
+          errorEl.hidden = false;
+          return;
+        }
+        payload = { kind: "absolute", price, cooldownMin };
+      } else {
+        const value = Number(fd.get("value"));
+        if (!Number.isFinite(value)) {
+          errorEl.textContent = "阈值必须是数字";
+          errorEl.hidden = false;
+          return;
+        }
+        if (value === 0) {
+          errorEl.textContent = "阈值不能为 0";
+          errorEl.hidden = false;
+          return;
+        }
+        payload = { kind: "daily_change_pct", dailyPct: value, cooldownMin };
       }
-      if (value === 0) {
-        errorEl.textContent = "阈值不能为 0";
-        errorEl.hidden = false;
-        return;
-      }
-      payload = { kind: "daily_change_pct", dailyPct: value, cooldownMin };
     }
     payload.channels = positions.telegramReady ? ["browser", "telegram"] : ["browser"];
     try {
