@@ -1382,9 +1382,13 @@ function openAddRuleDialog(positionId, kind) {
     const k = dialog.dataset.kind;
     const pid = dialog.dataset.positionId;
     const isTpSl = k === "take_profit" || k === "stop_loss";
+    // Fresh-query from DOM (NOT closure) — the toggle may not have existed
+    // when the submit handler was first bound.
+    const freshToggle = dialog.querySelector("[data-rule-mode-toggle]");
     const m = isTpSl
-      ? (modeToggle?.querySelector(".mode-btn.active")?.dataset.ruleMode || "pct")
+      ? (freshToggle?.querySelector(".mode-btn.active")?.dataset.ruleMode || "pct")
       : "pct";
+    // Likewise fresh-query form elements — they may have been added later.
     const priceEl = form.elements["priceValue"];
     const valEl = form.elements["value"];
     // Re-derive cost from current snapshot at submit time.
